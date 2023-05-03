@@ -1,0 +1,46 @@
+version: "4"
+services:
+  rabbitmq:
+    hostname: rabbitmq
+    container_name: rabbitmq
+    image: rabbitmq:3-management
+    networks:
+      manager:
+        aliases:
+          - manager
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+  app:
+    container_name: app
+    build:
+      context: .
+      dockerfile: ./docker/app/Dockerfile
+    networks:
+      manager:
+        aliases:
+          - manager
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./:/app
+  celery:
+    container_name: celery
+    build: 
+      context: .
+      dockerfile: ./docker/celery/Dockerfile
+    networks:
+      manager:
+        aliases:
+          - manager
+    volumes:
+      - .:/app
+    depends_on:
+      - rabbitmq
+networks:
+    manager:
+        name: manager
+        external: true
