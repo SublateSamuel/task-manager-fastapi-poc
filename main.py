@@ -1,20 +1,31 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
+from fastapi import Depends, FastAPI
+from typing import List, Optional
 from schemas.task import Task
+from sqlalchemy.orm import Session
+from worker import process_task
+from database import repository
+from database.database import engine, Base
+from fastapi.responses import RedirectResponse
 
+
+Base.metadata.create_all(bind=engine)
 app = FastAPI()
-templates = Jinja2Templates(directory="templates")
 
 @app.get("/")
-def read_root(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+async def read_root():
+    '''Home da aplicação'''
+    return RedirectResponse(url='/docs')
 
-@app.get("/task", response_class=HTMLResponse)
-async def read_form(request: Request):
-    return templates.TemplateResponse("form.html", {"request": request})
+@app.get('/tasks')
+async def read_form(db: Session = Depends(repository.get_db)) -> List[Optional[Task]]:
+    '''Lista tarefas criadas'''
+    return repository.get_tasks(db)
 
-@app.post("/task", response_class=HTMLResponse)
-async def create_task(request: Request, task: Task):
-    print(request)
-    return templates.TemplateResponse("success.html", {"request": request, "task": task})
+@app.post('/task', status_code=201, response_model=Task)
+async def create_task(task: Task, db: Session = Depends(repository.get_db)) -> Task:
+    '''Cria novas tarefas'''
+    repository.create_new_task(db, task)
+    task_id = process_task.delay(task.dict()).id
+    print(task.dict())
+    print(task_id)
+    return task
